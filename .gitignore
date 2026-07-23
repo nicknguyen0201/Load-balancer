@@ -1,0 +1,9 @@
+# compiled binaries
+load balancer/lb
+server/mock_server
+*.o
+*.out
+*.exe
+
+# macOS
+.DS_Store

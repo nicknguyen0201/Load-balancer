@@ -19,8 +19,35 @@ congestion control, router design), and working on real system project.
 ## Roadmap / Milestones
 
 - [ ] **M1 — Minimal L4 load balancer**
+Simple backend that listen on a port and return hello message
   Accepts TCP connections, forwards bytes to a backend chosen via round robin.
   No health checks yet — just prove routing works end-to-end.
+
+  Progress:
+  - [x] Mock backend: listens on a port, replies "Hello from <id>" (and `/health`).
+  - [x] Backend pool + round robin: `std::vector<Server>` and an
+    `atomic<size_t>` counter; `pick_server()` returns the next backend.
+  - [x] Outbound leg: `connect_to_server()` opens a TCP socket to the chosen
+    backend (`socket` → `inet_pton`/`htons` → `connect`). Verified end-to-end
+    with a throwaway `main` that sends one request and prints the reply.
+
+  Next steps to finish M1:
+  - [ ] Listener: `make_listener(8080)` (`socket` → `setsockopt(SO_REUSEADDR)`
+    → `bind` → `listen`, backlog 128). LB's front door.
+  - [ ] Accept loop: replace the test `main` with `while (accept) handle(fd)`.
+  - [ ] `handle_connection()`: forward client → backend, then backend → client
+    (the test's read/write loop, writing to `client_fd` instead of stdout).
+  - [ ] Prove routing: `for i in {1..6}; do curl -s localhost:8080; done`
+    should rotate backend1/2/3/1/2/3.
+
+  Known follow-ups (tracked, not blocking M1):
+  - Single-threaded for now → `std::thread(handle_connection, fd).detach()`
+    once rotation works (this is where the atomic counter starts to matter).
+  - One `read()` per request assumes the whole request fits in one chunk →
+    replace with two independent pump loops + `shutdown(SHUT_WR)` for correct
+    L4 byte streaming.
+  - `signal(SIGPIPE, SIG_IGN)` so a client hanging up mid-response can't kill
+    the process.
 
 - [ ] **M2 — Health checks**
   Background thread pings each backend on an interval. Backend marked unhealthy
